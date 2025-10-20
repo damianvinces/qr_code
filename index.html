@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Gerador PIX Teixeira</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 20px;
+    }
+    .card {
+      background: #fff;
+      padding: 30px;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.3);
+      width: 460px;
+      max-width: 100%;
+    }
+    h1 {
+      font-size: 24px;
+      margin: 0 0 20px 0;
+      text-align: center;
+      color: #0ea5a3;
+      font-weight: 600;
+    }
+    .form-group {
+      margin-bottom: 16px;
+    }
+    label {
+      display: block;
+      font-size: 14px;
+      color: #374151;
+      margin-bottom: 6px;
+      font-weight: 500;
+    }
+    input {
+      width: 100%;
+      padding: 12px;
+      border-radius: 8px;
+      border: 2px solid #e5e7eb;
+      font-size: 14px;
+      transition: border-color 0.3s;
+    }
+    input:focus {
+      outline: none;
+      border-color: #0ea5a3;
+    }
+    input.error {
+      border-color: #ef4444;
+    }
+    .error-msg {
+      color: #ef4444;
+      font-size: 12px;
+      margin-top: 4px;
+      display: none;
+    }
+    .error-msg.show {
+      display: block;
+    }
+    button {
+      width: 100%;
+      padding: 12px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      font-size: 15px;
+      margin-top: 8px;
+      font-weight: 600;
+      transition: all 0.3s;
+    }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    button.primary {
+      background: #0ea5a3;
+      color: #fff;
+    }
+    button.primary:hover:not(:disabled) {
+      background: #0d8c8a;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(14,165,163,.3);
+    }
+    button.secondary {
+      background: #e5e7eb;
+      color: #111827;
+    }
+    button.secondary:hover:not(:disabled) {
+      background: #d1d5db;
+    }
+    button.download {
+      background: #8b5cf6;
+      color: #fff;
+    }
+    button.download:hover:not(:disabled) {
+      background: #7c3aed;
+    }
+    .qr-container {
+      display: none;
+      margin-top: 20px;
+      padding: 20px;
+      background: #f9fafb;
+      border-radius: 12px;
+      text-align: center;
+    }
+    .qr-container.show {
+      display: block;
+    }
+    img {
+      display: block;
+      margin: 0 auto;
+      width: 250px;
+      height: 250px;
+      border-radius: 8px;
+      background: #fff;
+      padding: 10px;
+    }
+    .payload-box {
+      font-size: 11px;
+      font-family: 'Courier New', monospace;
+      color: #444;
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      padding: 10px;
+      word-wrap: break-word;
+      margin-top: 12px;
+      max-height: 100px;
+      overflow: auto;
+    }
+    footer {
+      text-align: center;
+      font-size: 12px;
+      color: #6b7280;
+      margin-top: 20px;
+    }
+    .info-badge {
+      display: inline-block;
+      background: #dbeafe;
+      color: #1e40af;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      margin-top: 4px;
+    }
+    .loading {
+      display: none;
+      text-align: center;
+      padding: 20px;
+    }
+    .loading.show {
+      display: block;
+    }
+    .spinner {
+      border: 3px solid #f3f4f6;
+      border-top: 3px solid #0ea5a3;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>🔐 Gerador Pix QR Code</h1>
+
+    <div class="form-group">
+      <label for="amount">Valor (opcional)</label>
+      <input id="amount" placeholder="Ex: 25.50" type="text">
+      <span class="error-msg" id="amountError"></span>
+    </div>
+
+    <div class="form-group">
+      <label for="txid">Identificador (opcional)</label>
+      <input id="txid" maxlength="25" placeholder="Deixe vazio para gerar automático">
+    </div>
+
+    <button id="generate" class="primary">✨ Gerar QR PIX</button>
+
+    <div class="loading" id="loading">
+      <div class="spinner"></div>
+      <p style="margin-top:10px;color:#6b7280;">Gerando QR Code...</p>
+    </div>
+
+    <div class="qr-container" id="qrContainer">
+      <img id="qr" alt="QR Code PIX">
+      <div class="payload-box" id="payloadPreview"></div>
+      <button id="copyPayload" class="secondary">📋 Copiar Payload</button>
+      <button id="downloadQR" class="download">💾 Baixar QR Code</button>
+    </div>
+
+    <footer>
+      ✅ Compatível com padrão BR Code do Banco Central<br>
+      Desenvolvido por Damián 
+    </footer>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+  <script>
+    const state = {
+      currentPayload: ''
+    };
+
+    // Validação de chave PIX
+    function validatePixKey(key) {
+      if (!key) return { valid: false, type: '' };
+      
+      const cleanKey = key.replace(/\D/g, '');
+      
+      if (/^\d{11}$/.test(cleanKey)) {
+        return { valid: true, type: 'CPF' };
+      }
+      
+      if (/^\d{14}$/.test(cleanKey)) {
+        return { valid: true, type: 'CNPJ' };
+      }
+      
+      if (/^\d{10,11}$/.test(cleanKey) && cleanKey.length <= 11) {
+        return { valid: true, type: 'Telefone' };
+      }
+      
+      if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(key)) {
+        return { valid: true, type: 'E-mail' };
+      }
+      
+      if (/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(key)) {
+        return { valid: true, type: 'Chave Aleatória' };
+      }
+      
+      return { valid: false, type: '' };
+    }
+
+    // Funções utilitárias
+    function pad2(n) { 
+      return String(n).padStart(2, '0'); 
+    }
+    
+    function tlv(id, value) { 
+      const v = String(value); 
+      return id + pad2(v.length) + v; 
+    }
+
+    function sanitizeText(s, maxLen) {
+      if (!s) return '';
+      let out = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      out = out.replace(/[^A-Za-z0-9 ]/g, ''); // Remove caracteres especiais
+      out = out.trim().replace(/\s+/g, ' '); // Remove espaços extras
+      if (maxLen && out.length > maxLen) out = out.slice(0, maxLen);
+      return out.toUpperCase();
+    }
+
+    function crc16(payload) {
+      let crc = 0xFFFF;
+      for (let i = 0; i < payload.length; i++) {
+        crc ^= payload.charCodeAt(i) << 8;
+        for (let j = 0; j < 8; j++) {
+          if (crc & 0x8000) crc = (crc << 1) ^ 0x1021;
+          else crc <<= 1;
+          crc &= 0xFFFF;
+        }
+      }
+      return crc.toString(16).toUpperCase().padStart(4, '0');
+    }
+
+    function buildPixPayload({ pixKey, merchantName, merchantCity, amount, txid }) {
+      if (!pixKey) throw new Error('Chave PIX necessária');
+
+      const gui = 'br.gov.bcb.pix';
+      const nameClean = sanitizeText(merchantName || 'PIX', 25);
+      const cityClean = sanitizeText(merchantCity || 'BRASIL', 15);
+      const keyClean = String(pixKey).trim();
+
+      const merchantAccountInfo = tlv('00', gui) + tlv('01', keyClean);
+
+      let payload = '';
+      payload += tlv('00', '01'); // Payload Format Indicator
+      payload += tlv('01', '12'); // Point of Initiation Method (12 = static, 11 = dynamic)
+      payload += tlv('26', merchantAccountInfo); // Merchant Account Information
+      payload += tlv('52', '0000'); // Merchant Category Code
+      payload += tlv('53', '986'); // Transaction Currency (986 = BRL)
+      
+      if (amount) {
+        const amt = parseFloat(String(amount).replace(',', '.'));
+        if (!isNaN(amt) && amt > 0) {
+          payload += tlv('54', amt.toFixed(2)); // Transaction Amount
+        }
+      }
+      
+      payload += tlv('58', 'BR'); // Country Code
+      payload += tlv('59', nameClean); // Merchant Name
+      payload += tlv('60', cityClean); // Merchant City
+
+      // Additional Data Field Template
+      const txidValue = txid && txid.trim() 
+        ? sanitizeText(txid.trim(), 25)
+        : ('***');
+      const additionalData = tlv('05', txidValue);
+      payload += tlv('62', additionalData);
+
+      // CRC16
+      const crcInput = payload + '6304';
+      const crc = crc16(crcInput);
+      const full = crcInput + crc;
+      
+      console.log('Payload gerado:', full);
+      return full;
+    }
+
+    // UI Elements
+    const amountInput = document.getElementById('amount');
+    const txidInput = document.getElementById('txid');
+    const qrImg = document.getElementById('qr');
+    const payloadPreview = document.getElementById('payloadPreview');
+    const btnGenerate = document.getElementById('generate');
+    const btnCopy = document.getElementById('copyPayload');
+    const btnDownload = document.getElementById('downloadQR');
+    const qrContainer = document.getElementById('qrContainer');
+    const loading = document.getElementById('loading');
+
+    // Formatação de valor monetário
+    amountInput.addEventListener('input', (e) => {
+      let value = e.target.value.replace(/\D/g, '');
+      if (value) {
+        value = (parseInt(value) / 100).toFixed(2);
+        e.target.value = value;
+      }
+    });
+
+    // Gerar QR Code
+    btnGenerate.addEventListener('click', async () => {
+      const pixKey = '+5511993916905'; // Formato correto para celular PIX
+      const merchantName = 'Danny Damian Vinces Wong';
+      const merchantCity = 'Sao Paulo';
+
+      // Validações apenas do valor se preenchido
+      let hasError = false;
+
+      const amountValue = amountInput.value.trim();
+      if (amountValue) {
+        const amt = parseFloat(amountValue.replace(',', '.'));
+        if (isNaN(amt) || amt <= 0) {
+          document.getElementById('amountError').textContent = 'Valor inválido';
+          document.getElementById('amountError').classList.add('show');
+          amountInput.classList.add('error');
+          hasError = true;
+        } else {
+          document.getElementById('amountError').classList.remove('show');
+          amountInput.classList.remove('error');
+        }
+      }
+
+      if (hasError) return;
+
+      try {
+        loading.classList.add('show');
+        btnGenerate.disabled = true;
+        qrContainer.classList.remove('show');
+
+        const payload = buildPixPayload({
+          pixKey,
+          merchantName,
+          merchantCity,
+          amount: amountInput.value,
+          txid: txidInput.value,
+        });
+
+        state.currentPayload = payload;
+        payloadPreview.textContent = payload;
+
+        // Usar a biblioteca QRCode do seu código original
+        const dataUrl = await QRCode.toDataURL(payload, { 
+          width: 300, 
+          margin: 2,
+          errorCorrectionLevel: 'M'
+        });
+        
+        qrImg.src = dataUrl;
+
+        loading.classList.remove('show');
+        qrContainer.classList.add('show');
+        btnGenerate.disabled = false;
+
+      } catch (e) {
+        loading.classList.remove('show');
+        btnGenerate.disabled = false;
+        alert('Erro ao gerar QR Code: ' + e.message);
+        console.error(e);
+      }
+    });
+
+    // Copiar payload
+    btnCopy.addEventListener('click', async () => {
+      if (!state.currentPayload) return;
+      
+      try {
+        await navigator.clipboard.writeText(state.currentPayload);
+        btnCopy.textContent = '✅ Copiado!';
+        setTimeout(() => {
+          btnCopy.textContent = '📋 Copiar Payload';
+        }, 2000);
+      } catch (e) {
+        alert('Falha ao copiar: ' + e.message);
+      }
+    });
+
+    // Download QR Code
+    btnDownload.addEventListener('click', () => {
+      if (!qrImg.src || qrImg.src === '') return;
+      
+      const link = document.createElement('a');
+      link.download = `qrcode-pix-${Date.now()}.png`;
+      link.href = qrImg.src;
+      link.click();
+    });
+  </script>
+</body>
+</html>
