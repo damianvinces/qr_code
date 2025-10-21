@@ -208,8 +208,6 @@
       <span class="error-msg" id="amountError"></span>
     </div>
 
-
-
     <button id="generate" class="primary">✨ Gerar QR PIX</button>
 
     <div class="loading" id="loading">
@@ -287,6 +285,15 @@
       return out.toUpperCase();
     }
 
+    function generateTxId() {
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+      let result = '';
+      for (let i = 0; i < 25; i++) {
+        result += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return result;
+    }
+
     function crc16(payload) {
       let crc = 0xFFFF;
       for (let i = 0; i < payload.length; i++) {
@@ -328,13 +335,7 @@
       payload += tlv('59', nameClean);
       payload += tlv('60', cityClean);
 
-      // Gerar TXID automático
-      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-      let txidValue = '';
-      for (let i = 0; i < 25; i++) {
-        txidValue += chars.charAt(Math.floor(Math.random() * chars.length));
-      }
-      
+      const txidValue = '***';
       const additionalData = tlv('05', txidValue);
       payload += tlv('62', additionalData);
 
@@ -416,7 +417,7 @@
 
     // Gerar QR Code
     btnGenerate.addEventListener('click', async () => {
-      const pixKey = '+5511993916905';
+      const pixKey = '+5511993916905'; // Formato original que funcionava
       const merchantName = 'Danny Damian Vinces Wong';
       const merchantCity = 'Sao Paulo';
 
