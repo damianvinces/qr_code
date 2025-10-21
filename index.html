@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Gerador PIX Teixeira</title>
+  <title>QR Code Pix</title>
   <style>
     * {
       box-sizing: border-box;
@@ -116,6 +116,28 @@
     .qr-container.show {
       display: block;
     }
+    .timer-display {
+      text-align: center;
+      margin-bottom: 15px;
+      padding: 10px;
+      background: #fef3c7;
+      border-radius: 8px;
+      font-weight: 600;
+      color: #92400e;
+      display: none;
+    }
+    .timer-display.show {
+      display: block;
+    }
+    .timer-display.warning {
+      background: #fee2e2;
+      color: #991b1b;
+      animation: pulse 1s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
     img {
       display: block;
       margin: 0 auto;
@@ -186,10 +208,7 @@
       <span class="error-msg" id="amountError"></span>
     </div>
 
-    <div class="form-group">
-      <label for="txid">Identificador (opcional)</label>
-      <input id="txid" maxlength="25" placeholder="Deixe vazio para gerar automático">
-    </div>
+
 
     <button id="generate" class="primary">✨ Gerar QR PIX</button>
 
@@ -199,6 +218,7 @@
     </div>
 
     <div class="qr-container" id="qrContainer">
+      <div class="timer-display" id="timerDisplay">⏱️ Tempo restante: <span id="timerText">3:00</span></div>
       <img id="qr" alt="QR Code PIX">
       <div class="payload-box" id="payloadPreview"></div>
       <button id="copyPayload" class="secondary">📋 Copiar Payload</button>
@@ -214,7 +234,9 @@
   <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
   <script>
     const state = {
-      currentPayload: ''
+      currentPayload: '',
+      timer: null,
+      timeRemaining: 180
     };
 
     // Validação de chave PIX
@@ -259,8 +281,8 @@
     function sanitizeText(s, maxLen) {
       if (!s) return '';
       let out = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-      out = out.replace(/[^A-Za-z0-9 ]/g, ''); // Remove caracteres especiais
-      out = out.trim().replace(/\s+/g, ' '); // Remove espaços extras
+      out = out.replace(/[^A-Za-z0-9 ]/g, '');
+      out = out.trim().replace(/\s+/g, ' ');
       if (maxLen && out.length > maxLen) out = out.slice(0, maxLen);
       return out.toUpperCase();
     }
@@ -278,7 +300,7 @@
       return crc.toString(16).toUpperCase().padStart(4, '0');
     }
 
-    function buildPixPayload({ pixKey, merchantName, merchantCity, amount, txid }) {
+    function buildPixPayload({ pixKey, merchantName, merchantCity, amount }) {
       if (!pixKey) throw new Error('Chave PIX necessária');
 
       const gui = 'br.gov.bcb.pix';
@@ -289,31 +311,33 @@
       const merchantAccountInfo = tlv('00', gui) + tlv('01', keyClean);
 
       let payload = '';
-      payload += tlv('00', '01'); // Payload Format Indicator
-      payload += tlv('01', '12'); // Point of Initiation Method (12 = static, 11 = dynamic)
-      payload += tlv('26', merchantAccountInfo); // Merchant Account Information
-      payload += tlv('52', '0000'); // Merchant Category Code
-      payload += tlv('53', '986'); // Transaction Currency (986 = BRL)
+      payload += tlv('00', '01');
+      payload += tlv('01', '12');
+      payload += tlv('26', merchantAccountInfo);
+      payload += tlv('52', '0000');
+      payload += tlv('53', '986');
       
       if (amount) {
         const amt = parseFloat(String(amount).replace(',', '.'));
         if (!isNaN(amt) && amt > 0) {
-          payload += tlv('54', amt.toFixed(2)); // Transaction Amount
+          payload += tlv('54', amt.toFixed(2));
         }
       }
       
-      payload += tlv('58', 'BR'); // Country Code
-      payload += tlv('59', nameClean); // Merchant Name
-      payload += tlv('60', cityClean); // Merchant City
+      payload += tlv('58', 'BR');
+      payload += tlv('59', nameClean);
+      payload += tlv('60', cityClean);
 
-      // Additional Data Field Template
-      const txidValue = txid && txid.trim() 
-        ? sanitizeText(txid.trim(), 25)
-        : ('***');
+      // Gerar TXID automático
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+      let txidValue = '';
+      for (let i = 0; i < 25; i++) {
+        txidValue += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      
       const additionalData = tlv('05', txidValue);
       payload += tlv('62', additionalData);
 
-      // CRC16
       const crcInput = payload + '6304';
       const crc = crc16(crcInput);
       const full = crcInput + crc;
@@ -322,9 +346,55 @@
       return full;
     }
 
+    // Funções do timer
+    function formatTime(seconds) {
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return `${mins}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    function startTimer() {
+      stopTimer();
+      state.timeRemaining = 180;
+      timerDisplay.classList.add('show');
+      timerDisplay.classList.remove('warning');
+      timerText.textContent = formatTime(state.timeRemaining);
+
+      state.timer = setInterval(() => {
+        state.timeRemaining--;
+        timerText.textContent = formatTime(state.timeRemaining);
+
+        if (state.timeRemaining <= 30) {
+          timerDisplay.classList.add('warning');
+        }
+
+        if (state.timeRemaining <= 0) {
+          stopTimer();
+          resetForm();
+        }
+      }, 1000);
+    }
+
+    function stopTimer() {
+      if (state.timer) {
+        clearInterval(state.timer);
+        state.timer = null;
+      }
+      timerDisplay.classList.remove('show');
+      timerDisplay.classList.remove('warning');
+    }
+
+    function resetForm() {
+      qrContainer.classList.remove('show');
+      stopTimer();
+      state.currentPayload = '';
+      qrImg.src = '';
+      payloadPreview.textContent = '';
+      amountInput.value = '';
+    }
+
     // UI Elements
     const amountInput = document.getElementById('amount');
-    const txidInput = document.getElementById('txid');
     const qrImg = document.getElementById('qr');
     const payloadPreview = document.getElementById('payloadPreview');
     const btnGenerate = document.getElementById('generate');
@@ -332,6 +402,8 @@
     const btnDownload = document.getElementById('downloadQR');
     const qrContainer = document.getElementById('qrContainer');
     const loading = document.getElementById('loading');
+    const timerDisplay = document.getElementById('timerDisplay');
+    const timerText = document.getElementById('timerText');
 
     // Formatação de valor monetário
     amountInput.addEventListener('input', (e) => {
@@ -344,11 +416,10 @@
 
     // Gerar QR Code
     btnGenerate.addEventListener('click', async () => {
-      const pixKey = '+5511993916905'; // Formato correto para celular PIX
+      const pixKey = '+5511993916905';
       const merchantName = 'Danny Damian Vinces Wong';
       const merchantCity = 'Sao Paulo';
 
-      // Validações apenas do valor se preenchido
       let hasError = false;
 
       const amountValue = amountInput.value.trim();
@@ -376,14 +447,12 @@
           pixKey,
           merchantName,
           merchantCity,
-          amount: amountInput.value,
-          txid: txidInput.value,
+          amount: amountInput.value
         });
 
         state.currentPayload = payload;
         payloadPreview.textContent = payload;
 
-        // Usar a biblioteca QRCode do seu código original
         const dataUrl = await QRCode.toDataURL(payload, { 
           width: 300, 
           margin: 2,
@@ -395,6 +464,9 @@
         loading.classList.remove('show');
         qrContainer.classList.add('show');
         btnGenerate.disabled = false;
+
+        // Iniciar timer de 180 segundos
+        startTimer();
 
       } catch (e) {
         loading.classList.remove('show');
